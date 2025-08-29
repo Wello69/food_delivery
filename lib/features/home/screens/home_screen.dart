@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:dio/dio.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,8 +11,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool isGrid = true;
+  List<String> bannerImages = [];
+  bool isLoading = true;
 
-  // Dummy Food Data
   final List<Map<String, String>> featuredItems = [
     {
       "name": "Pizza",
@@ -38,6 +41,37 @@ class _HomeScreenState extends State<HomeScreen> {
       "image": "https://picsum.photos/200/200?random=5",
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchBannerImages();
+  }
+
+  Future<void> fetchBannerImages() async {
+    const String accessKey = 'iBeckSmCzZbMQrCDgiG_-TL8avJmdQcVSz8zqA9De8s';
+    try {
+      final response = await Dio().get(
+        'https://api.unsplash.com/search/photos',
+        queryParameters: {
+          'query': 'food',
+          'per_page': 6,
+          'client_id': accessKey,
+        },
+      );
+      final List results = response.data['results'];
+      setState(() {
+        bannerImages =
+            results.map<String>((e) => e['urls']['regular'] as String).toList();
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching images: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               // Search Bar
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: TextField(
                   decoration: InputDecoration(
                     hintText: 'Search for food...',
@@ -95,14 +126,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // Carousel Placeholder
+              // Carousel Slider
               Container(
                 height: 150,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.blue[200],
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : bannerImages.isEmpty
+                        ? const Center(child: Text('No images found'))
+                        : CarouselSlider(
+                            options: CarouselOptions(
+                              height: 150,
+                              autoPlay: true,
+                              enlargeCenterPage: true,
+                              viewportFraction: 0.9,
+                            ),
+                            items: bannerImages.map((image) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  image,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                ),
+                              );
+                            }).toList(),
+                          ),
               ),
               const SizedBox(height: 16),
 
@@ -177,11 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: featuredItems.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 12,
-                              crossAxisSpacing: 12,
-                              childAspectRatio: 0.7,
-                            ),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.7,
+                        ),
                         itemBuilder: (context, index) {
                           final item = featuredItems[index];
                           return _buildFoodCard(item);
@@ -223,6 +272,15 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 100,
               width: double.infinity,
               fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return SizedBox(
+                  height: 100,
+                  child: const Center(child: CircularProgressIndicator()),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.error),
             ),
           ),
           Expanded(
@@ -231,18 +289,13 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item["name"]!,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                  Text(item["name"]!,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
-                  Text(
-                    item["price"]!,
-                    style: TextStyle(color: Colors.blue[700], fontSize: 14),
-                  ),
+                  Text(item["price"]!,
+                      style:
+                          TextStyle(color: Colors.blue[700], fontSize: 14)),
                   const Spacer(),
                   ElevatedButton(
                     onPressed: () => print("Add ${item["name"]} to cart"),
